@@ -1,0 +1,792 @@
+﻿// Name:        MicrosoftAjax.debug.js
+// Assembly:    System.Web.Extensions
+// Version:     4.0.0.0
+// FileVersion: 4.0.20526.0
+//-----------------------------------------------------------------------
+// Copyright (C) Microsoft Corporation. All rights reserved.
+//-----------------------------------------------------------------------
+// MicrosoftAjax.js
+// Microsoft AJAX Framework.
+ 
+Function.__typeName = 'Function';
+Function.__class = true;
+Function.createCallback = function Function$createCallback(method, context) {
+    /// <summary locid="M:J#Function.createCallback" />
+    /// <param name="method" type="Function"></param>
+    /// <param name="context" mayBeNull="true"></param>
+    /// <returns type="Function"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "method", type: Function},
+        {name: "context", mayBeNull: true}
+    ]);
+    if (e) throw e;
+    return function() {
+        var l = arguments.length;
+        if (l > 0) {
+            var args = [];
+            for (var i = 0; i < l; i++) {
+                args[i] = arguments[i];
+            }
+            args[l] = context;
+            return method.apply(this, args);
+        }
+        return method.call(this, context);
+    }
+}
+Function.createDelegate = function Function$createDelegate(instance, method) {
+    /// <summary locid="M:J#Function.createDelegate" />
+    /// <param name="instance" mayBeNull="true"></param>
+    /// <param name="method" type="Function"></param>
+    /// <returns type="Function"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance", mayBeNull: true},
+        {name: "method", type: Function}
+    ]);
+    if (e) throw e;
+    return function() {
+        return method.apply(instance, arguments);
+    }
+}
+Function.emptyFunction = Function.emptyMethod = function Function$emptyMethod() {
+    /// <summary locid="M:J#Function.emptyMethod" />
+}
+Function.validateParameters = function Function$validateParameters(parameters, expectedParameters, validateParameterCount) {
+    /// <summary locid="M:J#Function.validateParameters" />
+    /// <param name="parameters"></param>
+    /// <param name="expectedParameters"></param>
+    /// <param name="validateParameterCount" type="Boolean" optional="true"></param>
+    /// <returns type="Error" mayBeNull="true"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "parameters"},
+        {name: "expectedParameters"},
+        {name: "validateParameterCount", type: Boolean, optional: true}
+    ]);
+    if (e) throw e;
+    return Function._validateParams(parameters, expectedParameters, validateParameterCount);
+}
+Function._validateParams = function Function$_validateParams(params, expectedParams, validateParameterCount) {
+    var e, expectedLength = expectedParams.length;
+    validateParameterCount = validateParameterCount || (typeof(validateParameterCount) === "undefined");
+    e = Function._validateParameterCount(params, expectedParams, validateParameterCount);
+    if (e) {
+        e.popStackFrame();
+        return e;
+    }
+    for (var i = 0, l = params.length; i < l; i++) {
+        var expectedParam = expectedParams[Math.min(i, expectedLength - 1)],
+            paramName = expectedParam.name;
+        if (expectedParam.parameterArray) {
+            paramName += "[" + (i - expectedLength + 1) + "]";
+        }
+        else if (!validateParameterCount && (i >= expectedLength)) {
+            break;
+        }
+        e = Function._validateParameter(params[i], expectedParam, paramName);
+        if (e) {
+            e.popStackFrame();
+            return e;
+        }
+    }
+    return null;
+}
+Function._validateParameterCount = function Function$_validateParameterCount(params, expectedParams, validateParameterCount) {
+    var i, error,
+        expectedLen = expectedParams.length,
+        actualLen = params.length;
+    if (actualLen < expectedLen) {
+        var minParams = expectedLen;
+        for (i = 0; i < expectedLen; i++) {
+            var param = expectedParams[i];
+            if (param.optional || param.parameterArray) {
+                minParams--;
+            }
+        }        
+        if (actualLen < minParams) {
+            error = true;
+        }
+    }
+    else if (validateParameterCount && (actualLen > expectedLen)) {
+        error = true;      
+        for (i = 0; i < expectedLen; i++) {
+            if (expectedParams[i].parameterArray) {
+                error = false; 
+                break;
+            }
+        }  
+    }
+    if (error) {
+        var e = Error.parameterCount();
+        e.popStackFrame();
+        return e;
+    }
+    return null;
+}
+Function._validateParameter = function Function$_validateParameter(param, expectedParam, paramName) {
+    var e,
+        expectedType = expectedParam.type,
+        expectedInteger = !!expectedParam.integer,
+        expectedDomElement = !!expectedParam.domElement,
+        mayBeNull = !!expectedParam.mayBeNull;
+    e = Function._validateParameterType(param, expectedType, expectedInteger, expectedDomElement, mayBeNull, paramName);
+    if (e) {
+        e.popStackFrame();
+        return e;
+    }
+    var expectedElementType = expectedParam.elementType,
+        elementMayBeNull = !!expectedParam.elementMayBeNull;
+    if (expectedType === Array && typeof(param) !== "undefined" && param !== null &&
+        (expectedElementType || !elementMayBeNull)) {
+        var expectedElementInteger = !!expectedParam.elementInteger,
+            expectedElementDomElement = !!expectedParam.elementDomElement;
+        for (var i=0; i < param.length; i++) {
+            var elem = param[i];
+            e = Function._validateParameterType(elem, expectedElementType,
+                expectedElementInteger, expectedElementDomElement, elementMayBeNull,
+                paramName + "[" + i + "]");
+            if (e) {
+                e.popStackFrame();
+                return e;
+            }
+        }
+    }
+    return null;
+}
+Function._validateParameterType = function Function$_validateParameterType(param, expectedType, expectedInteger, expectedDomElement, mayBeNull, paramName) {
+    var e, i;
+    if (typeof(param) === "undefined") {
+        if (mayBeNull) {
+            return null;
+        }
+        else {
+            e = Error.argumentUndefined(paramName);
+            e.popStackFrame();
+            return e;
+        }
+    }
+    if (param === null) {
+        if (mayBeNull) {
+            return null;
+        }
+        else {
+            e = Error.argumentNull(paramName);
+            e.popStackFrame();
+            return e;
+        }
+    }
+    if (expectedType && expectedType.__enum) {
+        if (typeof(param) !== 'number') {
+            e = Error.argumentType(paramName, Object.getType(param), expectedType);
+            e.popStackFrame();
+            return e;
+        }
+        if ((param % 1) === 0) {
+            var values = expectedType.prototype;
+            if (!expectedType.__flags || (param === 0)) {
+                for (i in values) {
+                    if (values[i] === param) return null;
+                }
+            }
+            else {
+                var v = param;
+                for (i in values) {
+                    var vali = values[i];
+                    if (vali === 0) continue;
+                    if ((vali & param) === vali) {
+                        v -= vali;
+                    }
+                    if (v === 0) return null;
+                }
+            }
+        }
+        e = Error.argumentOutOfRange(paramName, param, String.format(Sys.Res.enumInvalidValue, param, expectedType.getName()));
+        e.popStackFrame();
+        return e;
+    }
+    if (expectedDomElement && (!Sys._isDomElement(param) || (param.nodeType === 3))) {
+        e = Error.argument(paramName, Sys.Res.argumentDomElement);
+        e.popStackFrame();
+        return e;
+    }
+    if (expectedType && !Sys._isInstanceOfType(expectedType, param)) {
+        e = Error.argumentType(paramName, Object.getType(param), expectedType);
+        e.popStackFrame();
+        return e;
+    }
+    if (expectedType === Number && expectedInteger) {
+        if ((param % 1) !== 0) {
+            e = Error.argumentOutOfRange(paramName, param, Sys.Res.argumentInteger);
+            e.popStackFrame();
+            return e;
+        }
+    }
+    return null;
+}
+ 
+Error.__typeName = 'Error';
+Error.__class = true;
+Error.create = function Error$create(message, errorInfo) {
+    /// <summary locid="M:J#Error.create" />
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="errorInfo" optional="true" mayBeNull="true"></param>
+    /// <returns type="Error"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "message", type: String, mayBeNull: true, optional: true},
+        {name: "errorInfo", mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var err = new Error(message);
+    err.message = message;
+    if (errorInfo) {
+        for (var v in errorInfo) {
+            err[v] = errorInfo[v];
+        }
+    }
+    err.popStackFrame();
+    return err;
+}
+Error.argument = function Error$argument(paramName, message) {
+    /// <summary locid="M:J#Error.argument" />
+    /// <param name="paramName" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "paramName", type: String, mayBeNull: true, optional: true},
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ArgumentException: " + (message ? message : Sys.Res.argument);
+    if (paramName) {
+        displayMessage += "\n" + String.format(Sys.Res.paramName, paramName);
+    }
+    var err = Error.create(displayMessage, { name: "Sys.ArgumentException", paramName: paramName });
+    err.popStackFrame();
+    return err;
+}
+Error.argumentNull = function Error$argumentNull(paramName, message) {
+    /// <summary locid="M:J#Error.argumentNull" />
+    /// <param name="paramName" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "paramName", type: String, mayBeNull: true, optional: true},
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ArgumentNullException: " + (message ? message : Sys.Res.argumentNull);
+    if (paramName) {
+        displayMessage += "\n" + String.format(Sys.Res.paramName, paramName);
+    }
+    var err = Error.create(displayMessage, { name: "Sys.ArgumentNullException", paramName: paramName });
+    err.popStackFrame();
+    return err;
+}
+Error.argumentOutOfRange = function Error$argumentOutOfRange(paramName, actualValue, message) {
+    /// <summary locid="M:J#Error.argumentOutOfRange" />
+    /// <param name="paramName" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="actualValue" optional="true" mayBeNull="true"></param>
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "paramName", type: String, mayBeNull: true, optional: true},
+        {name: "actualValue", mayBeNull: true, optional: true},
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ArgumentOutOfRangeException: " + (message ? message : Sys.Res.argumentOutOfRange);
+    if (paramName) {
+        displayMessage += "\n" + String.format(Sys.Res.paramName, paramName);
+    }
+    if (typeof(actualValue) !== "undefined" && actualValue !== null) {
+        displayMessage += "\n" + String.format(Sys.Res.actualValue, actualValue);
+    }
+    var err = Error.create(displayMessage, {
+        name: "Sys.ArgumentOutOfRangeException",
+        paramName: paramName,
+        actualValue: actualValue
+    });
+    err.popStackFrame();
+    return err;
+}
+Error.argumentType = function Error$argumentType(paramName, actualType, expectedType, message) {
+    /// <summary locid="M:J#Error.argumentType" />
+    /// <param name="paramName" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="actualType" type="Type" optional="true" mayBeNull="true"></param>
+    /// <param name="expectedType" type="Type" optional="true" mayBeNull="true"></param>
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "paramName", type: String, mayBeNull: true, optional: true},
+        {name: "actualType", type: Type, mayBeNull: true, optional: true},
+        {name: "expectedType", type: Type, mayBeNull: true, optional: true},
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ArgumentTypeException: ";
+    if (message) {
+        displayMessage += message;
+    }
+    else if (actualType && expectedType) {
+        displayMessage +=
+            String.format(Sys.Res.argumentTypeWithTypes, actualType.getName(), expectedType.getName());
+    }
+    else {
+        displayMessage += Sys.Res.argumentType;
+    }
+    if (paramName) {
+        displayMessage += "\n" + String.format(Sys.Res.paramName, paramName);
+    }
+    var err = Error.create(displayMessage, {
+        name: "Sys.ArgumentTypeException",
+        paramName: paramName,
+        actualType: actualType,
+        expectedType: expectedType
+    });
+    err.popStackFrame();
+    return err;
+}
+Error.argumentUndefined = function Error$argumentUndefined(paramName, message) {
+    /// <summary locid="M:J#Error.argumentUndefined" />
+    /// <param name="paramName" type="String" optional="true" mayBeNull="true"></param>
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "paramName", type: String, mayBeNull: true, optional: true},
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ArgumentUndefinedException: " + (message ? message : Sys.Res.argumentUndefined);
+    if (paramName) {
+        displayMessage += "\n" + String.format(Sys.Res.paramName, paramName);
+    }
+    var err = Error.create(displayMessage, { name: "Sys.ArgumentUndefinedException", paramName: paramName });
+    err.popStackFrame();
+    return err;
+}
+Error.format = function Error$format(message) {
+    /// <summary locid="M:J#Error.format" />
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.FormatException: " + (message ? message : Sys.Res.format);
+    var err = Error.create(displayMessage, {name: 'Sys.FormatException'});
+    err.popStackFrame();
+    return err;
+}
+Error.invalidOperation = function Error$invalidOperation(message) {
+    /// <summary locid="M:J#Error.invalidOperation" />
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.InvalidOperationException: " + (message ? message : Sys.Res.invalidOperation);
+    var err = Error.create(displayMessage, {name: 'Sys.InvalidOperationException'});
+    err.popStackFrame();
+    return err;
+}
+Error.notImplemented = function Error$notImplemented(message) {
+    /// <summary locid="M:J#Error.notImplemented" />
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.NotImplementedException: " + (message ? message : Sys.Res.notImplemented);
+    var err = Error.create(displayMessage, {name: 'Sys.NotImplementedException'});
+    err.popStackFrame();
+    return err;
+}
+Error.parameterCount = function Error$parameterCount(message) {
+    /// <summary locid="M:J#Error.parameterCount" />
+    /// <param name="message" type="String" optional="true" mayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "message", type: String, mayBeNull: true, optional: true}
+    ]);
+    if (e) throw e;
+    var displayMessage = "Sys.ParameterCountException: " + (message ? message : Sys.Res.parameterCount);
+    var err = Error.create(displayMessage, {name: 'Sys.ParameterCountException'});
+    err.popStackFrame();
+    return err;
+}
+Error.prototype.popStackFrame = function Error$popStackFrame() {
+    /// <summary locid="M:J#checkParam" />
+    if (arguments.length !== 0) throw Error.parameterCount();
+    if (typeof(this.stack) === "undefined" || this.stack === null ||
+        typeof(this.fileName) === "undefined" || this.fileName === null ||
+        typeof(this.lineNumber) === "undefined" || this.lineNumber === null) {
+        return;
+    }
+    var stackFrames = this.stack.split("\n");
+    var currentFrame = stackFrames[0];
+    var pattern = this.fileName + ":" + this.lineNumber;
+    while(typeof(currentFrame) !== "undefined" &&
+          currentFrame !== null &&
+          currentFrame.indexOf(pattern) === -1) {
+        stackFrames.shift();
+        currentFrame = stackFrames[0];
+    }
+    var nextFrame = stackFrames[1];
+    if (typeof(nextFrame) === "undefined" || nextFrame === null) {
+        return;
+    }
+    var nextFrameParts = nextFrame.match(/@(.*):(\d+)$/);
+    if (typeof(nextFrameParts) === "undefined" || nextFrameParts === null) {
+        return;
+    }
+    this.fileName = nextFrameParts[1];
+    this.lineNumber = parseInt(nextFrameParts[2]);
+    stackFrames.shift();
+    this.stack = stackFrames.join("\n");
+}
+ 
+Object.__typeName = 'Object';
+Object.__class = true;
+Object.getType = function Object$getType(instance) {
+    /// <summary locid="M:J#Object.getType" />
+    /// <param name="instance"></param>
+    /// <returns type="Type"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance"}
+    ]);
+    if (e) throw e;
+    var ctor = instance.constructor;
+    if (!ctor || (typeof(ctor) !== "function") || !ctor.__typeName || (ctor.__typeName === 'Object')) {
+        return Object;
+    }
+    return ctor;
+}
+Object.getTypeName = function Object$getTypeName(instance) {
+    /// <summary locid="M:J#Object.getTypeName" />
+    /// <param name="instance"></param>
+    /// <returns type="String"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance"}
+    ]);
+    if (e) throw e;
+    return Object.getType(instance).getName();
+}
+ 
+String.__typeName = 'String';
+String.__class = true;
+String.prototype.endsWith = function String$endsWith(suffix) {
+    /// <summary locid="M:J#String.endsWith" />
+    /// <param name="suffix" type="String"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "suffix", type: String}
+    ]);
+    if (e) throw e;
+    return (this.substr(this.length - suffix.length) === suffix);
+}
+String.prototype.startsWith = function String$startsWith(prefix) {
+    /// <summary locid="M:J#String.startsWith" />
+    /// <param name="prefix" type="String"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "prefix", type: String}
+    ]);
+    if (e) throw e;
+    return (this.substr(0, prefix.length) === prefix);
+}
+String.prototype.trim = function String$trim() {
+    /// <summary locid="M:J#String.trim" />
+    /// <returns type="String"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    return this.replace(/^\s+|\s+$/g, '');
+}
+String.prototype.trimEnd = function String$trimEnd() {
+    /// <summary locid="M:J#String.trimEnd" />
+    /// <returns type="String"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    return this.replace(/\s+$/, '');
+}
+String.prototype.trimStart = function String$trimStart() {
+    /// <summary locid="M:J#String.trimStart" />
+    /// <returns type="String"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    return this.replace(/^\s+/, '');
+}
+String.format = function String$format(format, args) {
+    /// <summary locid="M:J#String.format" />
+    /// <param name="format" type="String"></param>
+    /// <param name="args" parameterArray="true" mayBeNull="true"></param>
+    /// <returns type="String"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "format", type: String},
+        {name: "args", mayBeNull: true, parameterArray: true}
+    ]);
+    if (e) throw e;
+    return String._toFormattedString(false, arguments);
+}
+String._toFormattedString = function String$_toFormattedString(useLocale, args) {
+    var result = '';
+    var format = args[0];
+    for (var i=0;;) {
+        var open = format.indexOf('{', i);
+        var close = format.indexOf('}', i);
+        if ((open < 0) && (close < 0)) {
+            result += format.slice(i);
+            break;
+        }
+        if ((close > 0) && ((close < open) || (open < 0))) {
+            if (format.charAt(close + 1) !== '}') {
+                throw Error.argument('format', Sys.Res.stringFormatBraceMismatch);
+            }
+            result += format.slice(i, close + 1);
+            i = close + 2;
+            continue;
+        }
+        result += format.slice(i, open);
+        i = open + 1;
+        if (format.charAt(i) === '{') {
+            result += '{';
+            i++;
+            continue;
+        }
+        if (close < 0) throw Error.argument('format', Sys.Res.stringFormatBraceMismatch);
+        var brace = format.substring(i, close);
+        var colonIndex = brace.indexOf(':');
+        var argNumber = parseInt((colonIndex < 0)? brace : brace.substring(0, colonIndex), 10) + 1;
+        if (isNaN(argNumber)) throw Error.argument('format', Sys.Res.stringFormatInvalid);
+        var argFormat = (colonIndex < 0)? '' : brace.substring(colonIndex + 1);
+        var arg = args[argNumber];
+        if (typeof(arg) === "undefined" || arg === null) {
+            arg = '';
+        }
+        if (arg.toFormattedString) {
+            result += arg.toFormattedString(argFormat);
+        }
+        else if (useLocale && arg.localeFormat) {
+            result += arg.localeFormat(argFormat);
+        }
+        else if (arg.format) {
+            result += arg.format(argFormat);
+        }
+        else
+            result += arg.toString();
+        i = close + 1;
+    }
+    return result;
+}
+ 
+Boolean.__typeName = 'Boolean';
+Boolean.__class = true;
+Boolean.parse = function Boolean$parse(value) {
+    /// <summary locid="M:J#Boolean.parse" />
+    /// <param name="value" type="String"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "value", type: String}
+    ], false);
+    if (e) throw e;
+    var v = value.trim().toLowerCase();
+    if (v === 'false') return false;
+    if (v === 'true') return true;
+    throw Error.argumentOutOfRange('value', value, Sys.Res.boolTrueOrFalse);
+}
+ 
+Date.__typeName = 'Date';
+Date.__class = true;
+ 
+Number.__typeName = 'Number';
+Number.__class = true;
+ 
+RegExp.__typeName = 'RegExp';
+RegExp.__class = true;
+ 
+if (!window) this.window = this;
+window.Type = Function;
+Type.__fullyQualifiedIdentifierRegExp = new RegExp("^[^.0-9 \\s|,;:&*=+\\-()\\[\\]{}^%#@!~\\n\\r\\t\\f\\\\]([^ \\s|,;:&*=+\\-()\\[\\]{}^%#@!~\\n\\r\\t\\f\\\\]*[^. \\s|,;:&*=+\\-()\\[\\]{}^%#@!~\\n\\r\\t\\f\\\\])?$", "i");
+Type.__identifierRegExp = new RegExp("^[^.0-9 \\s|,;:&*=+\\-()\\[\\]{}^%#@!~\\n\\r\\t\\f\\\\][^. \\s|,;:&*=+\\-()\\[\\]{}^%#@!~\\n\\r\\t\\f\\\\]*$", "i");
+Type.prototype.callBaseMethod = function Type$callBaseMethod(instance, name, baseArguments) {
+    /// <summary locid="M:J#Type.callBaseMethod" />
+    /// <param name="instance"></param>
+    /// <param name="name" type="String"></param>
+    /// <param name="baseArguments" type="Array" optional="true" mayBeNull="true" elementMayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance"},
+        {name: "name", type: String},
+        {name: "baseArguments", type: Array, mayBeNull: true, optional: true, elementMayBeNull: true}
+    ]);
+    if (e) throw e;
+    var baseMethod = Sys._getBaseMethod(this, instance, name);
+    if (!baseMethod) throw Error.invalidOperation(String.format(Sys.Res.methodNotFound, name));
+    if (!baseArguments) {
+        return baseMethod.apply(instance);
+    }
+    else {
+        return baseMethod.apply(instance, baseArguments);
+    }
+}
+Type.prototype.getBaseMethod = function Type$getBaseMethod(instance, name) {
+    /// <summary locid="M:J#Type.getBaseMethod" />
+    /// <param name="instance"></param>
+    /// <param name="name" type="String"></param>
+    /// <returns type="Function" mayBeNull="true"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance"},
+        {name: "name", type: String}
+    ]);
+    if (e) throw e;
+    return Sys._getBaseMethod(this, instance, name);
+}
+Type.prototype.getBaseType = function Type$getBaseType() {
+    /// <summary locid="M:J#Type.getBaseType" />
+    /// <returns type="Type" mayBeNull="true"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    return (typeof(this.__baseType) === "undefined") ? null : this.__baseType;
+}
+Type.prototype.getInterfaces = function Type$getInterfaces() {
+    /// <summary locid="M:J#Type.getInterfaces" />
+    /// <returns type="Array" elementType="Type" mayBeNull="false" elementMayBeNull="false"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    var result = [];
+    var type = this;
+    while(type) {
+        var interfaces = type.__interfaces;
+        if (interfaces) {
+            for (var i = 0, l = interfaces.length; i < l; i++) {
+                var interfaceType = interfaces[i];
+                if (!Array.contains(result, interfaceType)) {
+                    result[result.length] = interfaceType;
+                }
+            }
+        }
+        type = type.__baseType;
+    }
+    return result;
+}
+Type.prototype.getName = function Type$getName() {
+    /// <summary locid="M:J#Type.getName" />
+    /// <returns type="String"></returns>
+    if (arguments.length !== 0) throw Error.parameterCount();
+    return (typeof(this.__typeName) === "undefined") ? "" : this.__typeName;
+}
+Type.prototype.implementsInterface = function Type$implementsInterface(interfaceType) {
+    /// <summary locid="M:J#Type.implementsInterface" />
+    /// <param name="interfaceType" type="Type"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "interfaceType", type: Type}
+    ]);
+    if (e) throw e;
+    this.resolveInheritance();
+    var interfaceName = interfaceType.getName();
+    var cache = this.__interfaceCache;
+    if (cache) {
+        var cacheEntry = cache[interfaceName];
+        if (typeof(cacheEntry) !== 'undefined') return cacheEntry;
+    }
+    else {
+        cache = this.__interfaceCache = {};
+    }
+    var baseType = this;
+    while (baseType) {
+        var interfaces = baseType.__interfaces;
+        if (interfaces) {
+            if (Array.indexOf(interfaces, interfaceType) !== -1) {
+                return cache[interfaceName] = true;
+            }
+        }
+        baseType = baseType.__baseType;
+    }
+    return cache[interfaceName] = false;
+}
+Type.prototype.inheritsFrom = function Type$inheritsFrom(parentType) {
+    /// <summary locid="M:J#Type.inheritsFrom" />
+    /// <param name="parentType" type="Type"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "parentType", type: Type}
+    ]);
+    if (e) throw e;
+    this.resolveInheritance();
+    var baseType = this.__baseType;
+    while (baseType) {
+        if (baseType === parentType) {
+            return true;
+        }
+        baseType = baseType.__baseType;
+    }
+    return false;
+}
+Type.prototype.initializeBase = function Type$initializeBase(instance, baseArguments) {
+    /// <summary locid="M:J#Type.initializeBase" />
+    /// <param name="instance"></param>
+    /// <param name="baseArguments" type="Array" optional="true" mayBeNull="true" elementMayBeNull="true"></param>
+    /// <returns></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance"},
+        {name: "baseArguments", type: Array, mayBeNull: true, optional: true, elementMayBeNull: true}
+    ]);
+    if (e) throw e;
+    if (!Sys._isInstanceOfType(this, instance)) throw Error.argumentType('instance', Object.getType(instance), this);
+    this.resolveInheritance();
+    if (this.__baseType) {
+        if (!baseArguments) {
+            this.__baseType.apply(instance);
+        }
+        else {
+            this.__baseType.apply(instance, baseArguments);
+        }
+    }
+    return instance;
+}
+Type.prototype.isImplementedBy = function Type$isImplementedBy(instance) {
+    /// <summary locid="M:J#Type.isImplementedBy" />
+    /// <param name="instance" mayBeNull="true"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance", mayBeNull: true}
+    ]);
+    if (e) throw e;
+    if (typeof(instance) === "undefined" || instance === null) return false;
+    var instanceType = Object.getType(instance);
+    return !!(instanceType.implementsInterface && instanceType.implementsInterface(this));
+}
+Type.prototype.isInstanceOfType = function Type$isInstanceOfType(instance) {
+    /// <summary locid="M:J#Type.isInstanceOfType" />
+    /// <param name="instance" mayBeNull="true"></param>
+    /// <returns type="Boolean"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "instance", mayBeNull: true}
+    ]);
+    if (e) throw e;
+    return Sys._isInstanceOfType(this, instance);
+}
+Type.prototype.registerClass = function Type$registerClass(typeName, baseType, interfaceTypes) {
+    /// <summary locid="M:J#Type.registerClass" />
+    /// <param name="typeName" type="String"></param>
+    /// <param name="baseType" type="Type" optional="true" mayBeNull="true"></param>
+    /// <param name="interfaceTypes" parameterArray="true" type="Type"></param>
+    /// <returns type="Type"></returns>
+    var e = Function._validateParams(arguments, [
+        {name: "typeName", type: String},
+        {name: "baseType", type: Type, mayBeNull: true, optional: true},
+        {name: "interfaceTypes", type: Type, parameterArray: true}
+    ]);
+    if (e) throw e;
+    if (!Type.__fullyQualifiedIdentifierRegExp.test(typeName)) throw Error.argument('typeName', Sys.Res.notATypeName);
+    var parsedName;
+    try {
+        parsedName = eval(typeName);
+    }
+    catch(e) {
+        throw Error.argument('typeName', Sys.Res.argumentTypeName);
+    }
+    if (parsedName !== this) throw Error.argument('typeName', Sys.Res.badTypeName);
+    if (Sys.__registeredTypes[typeName]) throw Error.invalidOperation(String.format(Sys.Res.typeRegisteredTwice, typeName));
+    if ((arguments.length > 1) && (typeof(baseType) === 'undefined')) throw Error.argumentUndefined('baseType');
+    if (baseType && !baseType.__class) throw Error.argument('baseType', Sys.Res.baseNotAClass);
+    this.prototype.constructor = this;
+    this.__typeName = typeName;
+    this.__class = true;
+    if (baseType) {
+       
